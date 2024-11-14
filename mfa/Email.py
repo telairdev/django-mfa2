@@ -13,7 +13,7 @@ from .views import login
 from .Common import send, get_username_field, set_next_recheck
 
 
-def sendEmail(request, username, secret, **kwargs):
+def sendEmail(request, username, secret, name=None, from_email=None):
     """Send Email to the user after rendering `mfa_email_token_template`"""
     User, UsernameField = get_username_field()
     user_query = {UsernameField: username}
@@ -29,10 +29,10 @@ def sendEmail(request, username, secret, **kwargs):
             subject = subject % secret
         else:
             subject = secret + " " + subject
-    if kwargs.get("brand_name", False):
-        subject = f"[{kwargs['brand_name']}] {subject}"
+    if name:
+        subject = f"[{name}] {subject}"
     
-    return send([user.email], subject, res.content.decode(), **kwargs)
+    return send([user.email], subject, res.content.decode(), name=name, from_email=from_email)
 
 
 @never_cache
