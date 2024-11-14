@@ -11,16 +11,13 @@ except ImportError:
     from django.core.urlresolver import reverse  # pyre-ignore[21]
 
 
-def send(to, subject, body, **kwargs):
+def send(to, subject, body, name=None, from_email=None):
     
-    if kwargs.get("from_email_address", False):
-        from_email_address = kwargs.get("from_email_address")
-    else:
-        from_email_address = settings.EMAIL_HOST_USER
-        
+    name = name if name else settings.EMAIL_FROM
+    from_email_address = from_email if from_email else settings.EMAIL_HOST_USER
     if "@" not in from_email_address:
         from_email_address = settings.DEFAULT_FROM_EMAIL
-    From = "%s <%s>" % (settings.EMAIL_FROM, from_email_address)
+    From = "%s <%s>" % (name, from_email_address)
     email = EmailMessage(subject, body, From, to)
     email.content_subtype = "html"
     return email.send(False)
