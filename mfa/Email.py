@@ -30,7 +30,7 @@ def sendEmail(request, username, secret, name=None, from_email=None):
         else:
             subject = secret + " " + subject
     if name:
-        subject = f"[{name}] {subject}"
+        subject = f"{name} {subject}"
     
     return send([user.email], subject, res.content.decode(), name=name, from_email=from_email)
 
