@@ -1,4 +1,6 @@
 import json
+import time
+from base64 import urlsafe_b64encode
 
 from fido2.server import Fido2Server, PublicKeyCredentialRpEntity
 from fido2.webauthn import RegistrationResponse
@@ -19,10 +21,28 @@ import fido2.features
 from django.http import JsonResponse
 
 
+NEW_FIDO_VER = False
+try:
+    from importlib.metadata import version
+
+    fido2_version = version("fido2")
+    NEW_FIDO_VER = fido2_version.split(".")[0] > "1"
+except Exception:  # pragma: no cover
+    NEW_FIDO_VER = fido2.__version__.split(".")[0] > "1"
+
+
 def enable_json_mapping():
-    try:
-        fido2.features.webauthn_json_mapping.enabled = True
-    except:
+    if NEW_FIDO_VER:
+        return
+    try:  # pragma: no cover
+        if hasattr(fido2.features, "webauthn_json_mapping"):
+            fido2.features.webauthn_json_mapping.enabled = True
+        else:
+            raise Exception(
+                "Failed to enable JSON mapping, please make sure you have fido2 version 1.0.0 or higher installed"
+            )
+
+    except ValueError:  # pragma: no cover
         pass
 
 
@@ -58,7 +78,7 @@ def begin_registeration(request):
     user_verification = getattr(settings, "MFA_FIDO2_USER_VERIFICATION", None)
     registration_data, state = server.register_begin(
         {
-            "id": request.user.username.encode("utf8"),
+            "id": urlsafe_b64encode(request.user.username.encode("utf8")),
             "name": request.user.username,
             "displayName": request.user.username,
         },
@@ -103,8 +123,9 @@ def complete_reg(request):
         }
         uk.owned_by_enterprise = getattr(settings, "MFA_OWNED_BY_ENTERPRISE", False)
         uk.key_type = "FIDO2"
-        if auth_data.credential_data.credential_id:
-            uk.user_handle = auth_data.credential_data.credential_id
+        if data.get("id"):
+            uk.user_handle = data.get("id")
+
         uk.save()
         if (
             getattr(settings, "MFA_ENFORCE_RECOVERY_METHOD", False)
@@ -189,7 +210,7 @@ def authenticate_complete(request):
             username = request.user.username
         server = getServer()
         data = json.loads(request.body)
-        userHandle = data.get("response", {}).get("userHandle")
+        userHandle = data["id"]
         credential_id = data["id"]
 
         if userHandle:
@@ -204,12 +225,16 @@ def authenticate_complete(request):
                             websafe_decode(keys[0].properties["device"])
                         )
                     ]
+                else:
+                    credentials = getUserCredentials(username)
         elif credential_id and username is None:
             keys = User_Keys.objects.filter(user_handle=credential_id)
             if keys.exists():
                 credentials = [
                     AttestedCredentialData(websafe_decode(keys[0].properties["device"]))
                 ]
+            else:
+                credentials = getUserCredentials(username)
         else:
             credentials = getUserCredentials(username)
 
@@ -220,16 +245,13 @@ def authenticate_complete(request):
                 response=data,
             )
         except ValueError:
-            return (
-                JsonResponse(
-                    {
-                        "status": "ERR",
-                        "message": "Wrong challenge received, make sure that this is your security and try again.",
-                    },
-                    status=400,
-                ),
+            return JsonResponse(
+                {
+                    "status": "ERR",
+                    "message": "Wrong challenge received, make sure that this is your security and try again.",
+                },
+                status=400,
             )
-
         except Exception as excep:
             return JsonResponse({"status": "ERR", "message": str(excep)}, status=500)
 
@@ -239,7 +261,7 @@ def authenticate_complete(request):
             return JsonResponse({"status": "OK"})
 
         else:
-            if keys is None:
+            if keys is None or len(keys) == 0:
                 keys = User_Keys.objects.filter(
                     username=username, key_type="FIDO2", enabled=1
                 )

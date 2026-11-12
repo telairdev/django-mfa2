@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "mfa",
+    "csp",
     "sslserver",
 ]
 
@@ -49,6 +50,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "csp.middleware.CSPMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -163,8 +165,28 @@ PASSWORD_HASHERS += ["mfa.recovery.Hash"]
 RECOVERY_ITERATION = 1  # Number of iteration for recovery code, higher is more secure, but uses more resources for generation and check...
 TOKEN_ISSUER_NAME = "PROJECT_NAME"  # TOTP Issuer name
 
-U2F_APPID = "https://localhost:9000"  # URL For U2F
+U2F_APPID = "https://localhost:8000"  # URL For U2F
 FIDO_SERVER_ID = (
     "localhost"  # Server rp id for FIDO2, it the full domain of your project
 )
 FIDO_SERVER_NAME = "TestApp"
+
+CSP = ("'self'", f"*.localhost")
+CONTENT_SECURITY_POLICY = {
+    "DIRECTIVES": {
+        "default-src": CSP,
+        "img-src": CSP + ("data:", "blob:"),
+        "font-src": CSP + ("data:",),
+        "style-src": CSP,
+        "script-src": CSP,
+        "connect-src": CSP,
+        "form-action": CSP,
+    }
+}
+# CSP_DEFAULT_SRC = CSP
+# CSP_IMG_SRC = CSP + ('data:', 'blob:')
+# CSP_FONT_SRC = CSP + ('data:',)
+# CSP_SCRIPT_SRC = CSP
+# CSP_STYLE_SRC = CSP
+# CSP_CONNECT_SRC = CSP
+# CSP_FORM_ACTION = CSP
